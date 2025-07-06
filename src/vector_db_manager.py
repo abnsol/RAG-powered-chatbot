@@ -68,3 +68,29 @@ if all_chunks:
     print(f"Example chunk metadata (first chunk): {all_chunks[0].metadata}")
 else:
     print("No chunks were created. Check your data and chunking logic.")
+
+
+## EMBEDDING MODEL SELECTION AND INITIALIZATION
+
+from langchain_community.embeddings import HuggingFaceEmbeddings
+from transformers import AutoModel, AutoTokenizer 
+
+# --- 3. Choose an Embedding Model ---
+# The project specifies 'sentence-transformers/all-MiniLM-L6-v2' as a good starting point.
+embedding_model_name = "sentence-transformers/all-MiniLM-L6-v2"
+
+# Initialize the embedding model
+print(f"\n--- Initializing Embedding Model: {embedding_model_name} ---")
+try:
+    embedding_model = HuggingFaceEmbeddings(model_name=embedding_model_name)
+    print(f"Embedding model '{embedding_model_name}' loaded successfully.")
+    
+    # Test the embedding model with a sample text
+    sample_text = "This is a test sentence to generate an embedding."
+    sample_embedding = embedding_model.embed_query(sample_text)
+    print(f"Sample embedding generated. Dimension: {len(sample_embedding)}")
+    print(f"Sample embedding (first 10 values): {sample_embedding[:10]}")
+
+except Exception as e:
+    print(f"Error loading embedding model: {e}")
+    print("Please ensure you have 'sentence-transformers' library installed.")
