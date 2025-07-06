@@ -2,3 +2,7 @@ pandas
 numpy
 matplotlib
 seaborn
+langchain 
+langchain-community 
+sentence-transformers 
+chromadb
