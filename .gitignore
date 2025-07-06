@@ -1,4 +1,3 @@
 .venv
 data
-vector_store/3081f5c9-0dcd-4e1e-940d-a3f348fc1fb9
-vector_store/chroma.sqlite3
+vector_store
