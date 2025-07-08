@@ -1,3 +1,7 @@
 .venv
+<<<<<<< HEAD
 data
 vector_store
+=======
+data
+>>>>>>> 3f7be9caaae010afd787ad8e3065ca9f8276400c

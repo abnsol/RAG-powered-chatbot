@@ -1,8 +1,12 @@
 pandas
 numpy
 matplotlib
+<<<<<<< HEAD
 seaborn
 langchain 
 langchain-community 
 sentence-transformers 
 chromadb
+=======
+seaborn
+>>>>>>> 3f7be9caaae010afd787ad8e3065ca9f8276400c
