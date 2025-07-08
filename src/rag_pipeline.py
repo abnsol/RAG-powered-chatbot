@@ -40,35 +40,28 @@ except Exception as e:
     print("Ensure 'chromadb' is installed and the vector store is correctly persisted.")
     sys.exit(1)
 
+# ... (previous imports and initializations like embedding_model, vectorstore, tokenizer, model) ...
+
 # --- 3. Initialize Language Model (Generator Component) ---
 print(f"\n--- Initializing Language Model: {llm_model_name} ---")
-llm_pipeline = None
+llm_model = None # Renamed from llm_pipeline to avoid confusion with the pipeline object below
+llm_tokenizer = None
 try:
-    # Check for GPU availability
     device = 0 if torch.cuda.is_available() else -1
     print(f"Using device: {'cuda' if device == 0 else 'cpu'}")
 
-    # Load tokenizer and model
-    tokenizer = AutoTokenizer.from_pretrained(llm_model_name)
-    model = AutoModelForCausalLM.from_pretrained(
+    llm_tokenizer = AutoTokenizer.from_pretrained(llm_model_name)
+    llm_model = AutoModelForCausalLM.from_pretrained(
         llm_model_name,
-        device_map="auto", # Automatically maps model to available devices (GPU/CPU)
-        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32 # Use float16 on GPU for efficiency
+        device_map="auto",
+        torch_dtype=torch.float16 if torch.cuda.is_available() else torch.float32
     )
+    # Ensure pad_token is set for generation, especially if batching or padding is involved
+    if llm_tokenizer.pad_token is None:
+        llm_tokenizer.add_special_tokens({'pad_token': '[PAD]'})
+        llm_model.resize_token_embeddings(len(llm_tokenizer))
 
-    # Create a text generation pipeline
-    llm_pipeline = pipeline(
-        "text-generation",
-        model=model,
-        tokenizer=tokenizer,
-        max_new_tokens=500, 
-        do_sample=True,
-        temperature=0.7,
-        top_k=50,
-        top_p=0.95,
-        repetition_penalty=1.1 
-    )
-    print(f"LLM '{llm_model_name}' pipeline loaded successfully.")
+    print(f"LLM '{llm_model_name}' loaded successfully for streaming.")
 
 except Exception as e:
     print(f"Error loading LLM '{llm_model_name}': {e}")
@@ -76,22 +69,22 @@ except Exception as e:
     print("If using Colab, try a GPU runtime. If local, ensure sufficient resources.")
     sys.exit(1)
 
-# --- 4. Define the RAG Core Function ---
-def answer_complaint_question(query: str, k: int = 5):
+# --- 4. Define the RAG Core Function (Modified for Streaming) ---
+def answer_complaint_question_stream(query: str, k: int = 5):
     """
-    Performs RAG to answer a question about customer complaints.
+    Performs RAG to answer a question about customer complaints, yielding tokens.
 
     Args:
         query (str): The user's question.
         k (int): The number of top relevant chunks to retrieve.
 
-    Returns:
-        tuple: A tuple containing:
-            - str: The generated answer from the LLM.
-            - list: A list of the retrieved LangChain Document objects.
+    Yields:
+        tuple: (str, list) where str is a partial answer, and list is the retrieved docs.
+               The retrieved docs are yielded only once with the first token.
     """
-    if not llm_pipeline:
-        return "Error: Language Model not loaded.", []
+    if llm_model is None or llm_tokenizer is None:
+        yield "Error: Language Model not loaded.", []
+        return
 
     print(f"\nUser Query: '{query}'")
 
@@ -101,14 +94,14 @@ def answer_complaint_question(query: str, k: int = 5):
 
     if not retrieved_docs:
         print("No relevant documents found.")
-        return "I could not find any relevant information to answer your question.", []
+        yield "I could not find any relevant information to answer your question.", []
+        return
 
     # --- Context Construction ---
     context = "\n\n".join([doc.page_content for doc in retrieved_docs])
     print(f"Retrieved {len(retrieved_docs)} chunks. Context length: {len(context)} characters.")
 
     # --- Prompt Engineering ---
-    # This template guides the LLM on how to use the context.
     prompt_template = f"""You are a financial analyst assistant for CrediTrust. Your task is to answer questions about customer complaints. Use the following retrieved complaint excerpts to formulate your answer concisely and accurately. If the context doesn't contain the answer, state that you don't have enough information.
 
 Context:
@@ -117,52 +110,72 @@ Context:
 Question: {query}
 Answer:"""
 
-    # --- Generator Step ---
-    print("Generating answer with LLM...")
-    try:
-        # For instruction-tuned models like Gemma-2b-it, it's common to wrap the prompt
-        # in specific chat formats. The pipeline handles this if you provide a list of dicts.
-        messages = [
-            {"role": "user", "content": prompt_template}
-        ]
-        
-        # The generate method of the pipeline expects a list of strings or dicts
-        # For Gemma, it's often better to pass the formatted prompt directly if not using chat template
-        # Or, if using the chat template, ensure the pipeline is configured for it.
-        # For simplicity, let's use the direct prompt string for now.
-        
-        # The pipeline returns a list of dictionaries, each containing 'generated_text'
-        response = llm_pipeline(prompt_template, num_return_sequences=1, return_full_text=False)
-        
-        # Extract the generated text. The exact key might vary slightly depending on the model/pipeline.
-        generated_answer = response[0]['generated_text'].strip()
+    # --- Generator Step (Streaming) ---
+    print("Generating answer with LLM (streaming)...")
+    
+    # Encode the prompt
+    input_ids = llm_tokenizer(prompt_template, return_tensors="pt").input_ids.to(llm_model.device)
 
-        print("Answer generated successfully.")
-        return generated_answer, retrieved_docs
+    # Initialize the streamer
+    streamer = TextIteratorStreamer(llm_tokenizer, skip_prompt=True, skip_special_tokens=True)
 
-    except Exception as e:
-        print(f"Error during LLM generation: {e}")
-        return "An error occurred while generating the answer.", retrieved_docs
+    # Run generation in a separate thread to allow streaming
+    generate_kwargs = dict(
+        input_ids=input_ids,
+        streamer=streamer,
+        max_new_tokens=500,
+        do_sample=True,
+        temperature=0.7,
+        top_k=50,
+        top_p=0.95,
+        repetition_penalty=1.1,
+        # Ensure pad_token_id is set if tokenizer has one, or model.config.eos_token_id
+        pad_token_id=llm_tokenizer.pad_token_id if llm_tokenizer.pad_token_id is not None else llm_tokenizer.eos_token_id
+    )
+    
+    thread = threading.Thread(target=llm_model.generate, kwargs=generate_kwargs)
+    thread.start()
 
-# --- Example Usage (for testing the script directly) ---
+    generated_text = ""
+    # Yield the retrieved docs once with the first token
+    first_token_yielded = False
+    for new_token in streamer:
+        generated_text += new_token
+        if not first_token_yielded:
+            yield generated_text, retrieved_docs # Yield first token with sources
+            first_token_yielded = True
+        else:
+            yield generated_text, [] # Yield subsequent tokens without sources (sources are static)
+
+    print("Answer generation complete.")
+
+# --- Example Usage (for testing the script directly - adjusted for streaming) ---
 if __name__ == "__main__":
-    print("\n--- Testing RAG Pipeline ---")
-    # Example questions for testing
+    print("\n--- Testing RAG Pipeline (Streaming) ---")
     test_questions = [
         "What are the common complaints about credit card billing?",
         "Why are people unhappy with personal loans?",
-        "Are there any fraud complaints related to money transfers?",
-        "What issues are customers facing with savings accounts?",
-        "Tell me about complaints regarding BNPL (Buy Now, Pay Later)." # Remember BNPL limitation
     ]
 
     for q in test_questions:
-        answer, sources = answer_complaint_question(q, k=5)
-        print(f"\n--- Answer ---")
-        print(answer)
-        print(f"\n--- Sources Used ({len(sources)} retrieved) ---")
-        for i, doc in enumerate(sources):
-            print(f"Source {i+1} (Product: {doc.metadata.get('product', 'N/A')}, Issue: {doc.metadata.get('issue', 'N/A')}):")
-            print(f"  Content: {doc.page_content[:300]}...") # Show first 300 chars
-            print("-" * 10)
+        print(f"\nUser Query: '{q}'")
+        full_answer_text = ""
+        retrieved_sources_for_display = [] # To capture sources from the first yield
+
+        for partial_answer, sources in answer_complaint_question_stream(q, k=5):
+            full_answer_text = partial_answer # Keep updating with the latest partial answer
+            if sources: # Sources will only be present in the first yield
+                retrieved_sources_for_display = sources
+            sys.stdout.write(partial_answer + '\r') # Print partial answer, overwrite previous line
+            sys.stdout.flush()
+        
+        print("\n" + full_answer_text) # Print final answer on a new line
+        print(f"\n--- Sources Used ({len(retrieved_sources_for_display)} retrieved) ---")
+        if retrieved_sources_for_display:
+            for i, doc in enumerate(retrieved_sources_for_display):
+                print(f"Source {i+1} (Product: {doc.metadata.get('product', 'N/A')}, Issue: {doc.metadata.get('issue', 'N/A')}):")
+                print(f"  Content: {doc.page_content[:300]}...")
+                print("-" * 10)
+        else:
+            print("No sources were retrieved or displayed for this query.")
         print("=" * 50)
