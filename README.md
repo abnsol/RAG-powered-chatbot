@@ -2,48 +2,64 @@
 
 ## Project Overview
 
-This project focuses on developing an internal AI tool for CrediTrust Financial, a fast-growing digital finance company in East Africa. The core of the solution is a Retrieval-Augmented Generation (RAG) powered chatbot designed to transform thousands of raw, unstructured customer complaints into actionable insights. By enabling internal stakeholders to ask plain-English questions and receive synthesized, evidence-backed answers, the tool aims to shift the company from reactive problem-solving to proactive issue identification based on real-time customer feedback.
+This project aims to develop an internal AI tool for CrediTrust Financial, a rapidly growing digital finance company. The core of this solution is a Retrieval-Augmented Generation (RAG) powered chatbot designed to transform vast amounts of raw, unstructured customer complaint data into actionable insights. By enabling internal stakeholders (like Product Managers, Support, and Compliance teams) to ask plain-English questions and receive synthesized, evidence-backed answers in seconds, the tool seeks to fundamentally shift the company from a reactive to a proactive stance in addressing customer pain points.
 
 ## Business Context & Problem
 
-CrediTrust Financial serves over 500,000 users across three countries with offerings including Credit Cards, Personal Loans, Buy Now, Pay Later (BNPL), Savings Accounts, and Money Transfers. They receive thousands of customer complaints monthly through various channels.
+CrediTrust Financial serves over 500,000 users across East African markets via a mobile-first platform, offering Credit Cards, Personal Loans, Buy Now, Pay Later (BNPL), Savings Accounts, and Money Transfers. The company receives thousands of customer complaints monthly.
 
-**The Problem**: Product Managers like Asha (BNPL team) currently spend excessive hours manually sifting through complaints, making it difficult to identify emerging issues quickly.
+**The Problem**: Internal teams, such as Product Managers, are currently overwhelmed by the volume of complaints, spending significant time manually identifying emerging issues.
 
 ### Key Performance Indicators (KPIs) for Success
 
-- Decrease time for Product Managers to identify major complaint trends from days to minutes.
+- Decrease the time for a Product Manager to identify a major complaint trend from days to minutes.
 - Empower non-technical teams (Support, Compliance) to get answers without needing a data analyst.
-- Shift from reactive to proactive problem-solving based on real-time customer feedback.
+- Shift the company from reacting to problems to proactively identifying and fixing them based on real-time customer feedback.
 
 ## Motivation
 
-CrediTrust's internal teams face significant bottlenecks:
+CrediTrust’s internal teams face serious bottlenecks:
 
-- Customer Support is overwhelmed by complaint volume.
-- Product Managers struggle to identify frequent/critical issues across products.
-- Compliance & Risk teams are reactive to violations/fraud signals.
-- Executives lack visibility into emerging pain points due to scattered complaint narratives.
+- Customer Support is overwhelmed by incoming complaint volume.
+- Product Managers struggle to identify frequent or critical issues across products.
+- Compliance & Risk teams are reactive rather than proactive.
+- Executives lack visibility into emerging pain points due to scattered and hard-to-read complaint narratives.
 
-As a Data & AI Engineer, the goal is to build a RAG agent that:
+The RAG agent is designed to:
 
-- Allows internal users to ask plain-English questions (e.g., "Why are people unhappy with BNPL?")
-- Uses semantic search (via a vector database) to retrieve relevant complaint narratives.
-- Feeds retrieved narratives into an LLM to generate concise, insightful answers.
-- Supports multi-product querying, enabling cross-product issue comparison.
+- Allow internal users to ask plain-English questions (e.g., “Why are people unhappy with BNPL?”).
+- Use semantic search (via a vector database) to retrieve the most relevant complaint narratives.
+- Feed the retrieved narratives into a Language Model (LLM) that generates concise, insightful answers.
+- Support multi-product querying, enabling filtering or comparison of issues across financial services.
 
 ## Data
 
-This project utilizes complaint data from the Consumer Financial Protection Bureau (CFPB), a real-world dataset containing customer complaints across various financial products.
+This challenge uses complaint data from the Consumer Financial Protection Bureau (CFPB). The dataset contains real customer complaints across multiple financial products.
 
-### Key Fields in each record:
+### Key Fields in Each Record
 
-- Consumer complaint narrative (core input for embedding and retrieval)
-- Product
-- Issue
-- Sub-product
-- Company
-- Submission date and other metadata
+- **Consumer complaint narrative**: The core input for embedding and retrieval.
+- **Product**: Financial product category.
+- **Issue**: Specific issue reported by the consumer.
+- **Sub-product**, **Company**, **Date received**, **Complaint ID**, and other metadata.
+
+## Learning Outcomes
+
+By completing this project, the following skills have been gained:
+
+- Combining vector similarity search with language models to answer user questions based on unstructured data.
+- Handling noisy, unstructured consumer complaint narratives and extracting meaningful insights.
+- Creating and querying a vector database (ChromaDB) using embedding models to power semantic search.
+- Developing a chatbot that uses real retrieved documents as context for generating intelligent, grounded answers using LLMs.
+- Creating a system that can analyze and respond across multiple financial product categories.
+- Building and testing a simple, interactive user interface.
+
+## Team & Key Dates
+
+- **Facilitators**: Mahlet, Kerod, Rediet, Rehmet  
+- **Challenge Introduction**: Wednesday, 02 July 2025 (9:30 AM UTC)  
+- **Interim Submission**: Sunday, 06 July 2025 (8:00 PM UTC)  
+- **Final Submission**: Tuesday, 08 July 2025 (8:00 PM UTC)  
 
 ## Project Structure
 
@@ -61,7 +77,8 @@ intelligent-complaint-answering-chatbot/
 ├── config/
 │   └── settings.yaml
 ├── models/
-│   └── sentence-transformers_all-MiniLM-L6-v2/
+│   ├── sentence-transformers_all-MiniLM-L6-v2/
+│   └── google_gemma-2b-it/
 ├── notebooks/
 │   ├── 01_eda_preprocessing.ipynb
 │   └── 02_rag_prototyping.ipynb
@@ -105,8 +122,6 @@ cd RAG-powered-chatbot
 
 ### Install Git LFS
 
-If you don't have Git LFS installed, [follow the instructions here](https://git-lfs.github.com/). Then run:
-
 ```bash
 git lfs install
 git lfs track "vector_store/*.sqlite3"
@@ -114,11 +129,18 @@ git add .gitattributes
 git commit -m "Configure Git LFS tracking for vector_store/*.sqlite3"
 ```
 
+If you've already committed large files:
+
+```bash
+git lfs migrate import --include="vector_store/chroma.sqlite3" --everything
+git push origin <your-branch-name> -f
+```
+
 ### Create and Activate Virtual Environment
 
 ```bash
 python3 -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 ```
 
 ### Install Dependencies
@@ -130,67 +152,53 @@ pip install -r requirements.txt
 Or manually:
 
 ```bash
-pip install pandas langchain langchain-community sentence-transformers chromadb gdown
+pip install pandas langchain langchain-community sentence-transformers chromadb gradio transformers accelerate gdown
 ```
 
-### Data Acquisition (`complaint.csv`)
+## Data Acquisition
 
-- **Local PC**: Place `complaint.csv` into `data/raw/`
-- **Google Colab**: Use `gdown` in `src/vector_db_manager.py` to download `filtered_complaints.csv`. Replace `'YOUR_FILTERED_COMPLAINTS_CSV_FILE_ID_HERE'` with your actual Google Drive file ID.
+### Local PC
 
----
+Place `complaint.csv` into `data/raw/`.
 
-## Progress & Deliverables
+### Google Colab
 
-### Task 1: Exploratory Data Analysis and Data Preprocessing
-
-- **Initial Dataset**: 9,609,797 rows, 18 columns.
-- **Key Findings**:
-  - 6.6M missing narratives (~69%) — removed.
-  - >90% missing in `Tags` and `Consumer disputed?`.
-  - 2.1M duplicate complaint narratives.
-  - No direct “BNPL” product — handled in filtering logic.
-
-- **Filtering**:
-  - Targeted five products: Credit Card, Personal Loan, BNPL, Savings Account, Money Transfer.
-  - Resulted in 1,045,146 rows → cleaned to 480,580 rows with added `narrative_length`.
-
-- **Text Cleaning**:
-  - Lowercased text.
-  - Example: `a xxxx xxxx card was opened under my name by a fraudster...`
-
-- **Distribution Analysis**:
-  - Visualized complaints per product.
-  - Word count histogram for chunking strategy.
-
-- **Deliverables**:
-  - Code: `src/data_processor.py`
-  - Cleaned data: `data/processed/filtered_complaints.csv`
+Update `filtered_csv_file_id` in the Colab-adapted scripts with the actual Google Drive file ID for your filtered dataset.
 
 ---
 
-### Task 2: Text Chunking, Embedding, and Vector Store Indexing
+## Project Progress & Deliverables
 
-- **Chunking**:
-  - Used `langchain.text_splitter.RecursiveCharacterTextSplitter`
-  - `chunk_size = 1000`, `chunk_overlap = 200`
-  - Output: 888,532 chunks
+### Task 1: EDA & Preprocessing
 
-- **Metadata**:
-  - complaint_id, product, issue, sub_product, company
+- Loaded raw dataset with 9.6M rows.
+- Removed ~69% of rows with missing complaint narratives.
+- Filtered for 5 key financial products.
+- Cleaned and saved to `data/processed/filtered_complaints.csv`.
 
-- **Embedding Model**:
-  - `sentence-transformers/all-MiniLM-L6-v2`
-  - Output: 384-dim embeddings
+### Task 2: Chunking, Embedding & Indexing
 
-- **Indexing**:
-  - Used ChromaDB for vector store
-  - Ongoing embedding/indexing process
+- Used `langchain.text_splitter.RecursiveCharacterTextSplitter`.
+- `chunk_size = 1000`, `chunk_overlap = 200`
+- Embedded with `sentence-transformers/all-MiniLM-L6-v2`.
+- Indexed using ChromaDB.
+- Saved to `vector_store/chroma.sqlite3`.
 
-- **Deliverables**:
-  - Script: `src/vector_db_manager.py`
-  - Saved vector store in `vector_store/`
-  - Documentation in final report
+### Task 3: RAG Pipeline & Evaluation
+
+- Retrieves top-5 relevant chunks using semantic similarity.
+- Uses a structured prompt for context-grounded answers.
+- Generates responses using `google/gemma-2b-it`.
+- Evaluates outputs on 5–10 test queries.
+
+### Task 4: Chat Interface
+
+- Built using Gradio.
+- Features:
+  - Query input and answer output
+  - Displays source chunks
+  - Streams LLM response token by token
+  - “Clear Chat” button
 
 ---
 
@@ -198,65 +206,57 @@ pip install pandas langchain langchain-community sentence-transformers chromadb 
 
 ### Local PC
 
-1. Ensure required files in:
-   - `data/raw/complaint.csv`
-   - `data/processed/filtered_complaints.csv`
-
-2. Activate virtual environment:
-
 ```bash
 source .venv/bin/activate
-```
-
-3. Run:
-
-```bash
 python3 src/vector_db_manager.py
+python3 src/app.py
 ```
 
-> ⚠️ This process may take hours depending on system specs.
-
----
+Then visit the local URL shown in the terminal (e.g., `http://127.0.0.1:7860/`).
 
 ### Google Colab
 
-1. Create a new Colab notebook.
-2. Install dependencies:
+1. Install dependencies:
 
 ```python
-!pip install pandas langchain langchain-community sentence-transformers chromadb gdown
+!pip install pandas langchain langchain-community sentence-transformers chromadb gradio transformers accelerate gdown
 ```
 
-3. Copy and paste `src/vector_db_manager.py` (Colab version).
-4. Update:
-   - `'YOUR_FILTERED_COMPLAINTS_CSV_FILE_ID_HERE'` with real file ID.
-   - `Your_Project_Folder_Name` with actual project name.
-5. Set GPU runtime (Runtime > Change runtime type > GPU).
-6. Run the code cell.
+2. Mount Google Drive:
+
+```python
+from google.colab import drive
+drive.mount('/content/drive')
+```
+
+3. Paste and run Colab-modified versions of:
+   - `src/vector_db_manager.py`
+   - `src/rag_pipeline.py`
+   - `src/app.py`
+
+4. Set GPU: Runtime → Change runtime type → Hardware Accelerator → GPU.
+
+5. Click the Gradio public link to access the UI.
 
 ---
 
 ## Challenges Encountered & Solutions
 
-### Large File Size (GitHub Limit)
+### GitHub File Size Limit
 
-- **Issue**: `chroma.sqlite3` > 100MB
-- **Solution**: Used Git LFS + `git lfs migrate` to convert history
+- Used Git LFS to handle large vector store files.
 
 ### Git History Divergence
 
-- **Issue**: `fatal: refusing to merge unrelated histories`
-- **Solution**:
+- Resolved with:
 
 ```bash
 git pull origin main --allow-unrelated-histories
-git push
 ```
 
+### LLM Download Errors
+
+- Preloaded models with `sentence-transformers` before initializing embedding pipeline.
+- Verified Hugging Face access tokens and GPU memory limits.
+
 ---
-
-## Future Work
-
-- **Task 3**: Build RAG logic — retriever, generator, prompt design, evaluation.
-- **Task 4**: Build interactive interface — Streamlit/Gradio chatbot with sources and streaming.
-
