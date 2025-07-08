@@ -9,7 +9,6 @@ try:
     elif os.getcwd().endswith('src'):
         sys.path.insert(0, os.getcwd())
 
-    # Import the streaming version of the function
     from rag_pipeline import answer_complaint_question_stream
     print("Successfully imported answer_complaint_question_stream from rag_pipeline.py")
 except ImportError as e:
@@ -37,11 +36,7 @@ def chat_interface(question):
         if sources: # Sources will only be present in the first yield
             retrieved_sources_for_display = sources
         
-        # Format the output for Gradio Markdown
         current_output = f"### CrediTrust Analyst Assistant:\n{full_answer}"
-        # Only append sources at the very end when all tokens are generated,
-        # or yield them once at the beginning if you prefer.
-        # For a clean streaming effect, we'll append sources after the loop.
         yield current_output # Yield the current partial answer
 
     # After the loop, append the sources to the final answer
@@ -61,10 +56,15 @@ def chat_interface(question):
 
 
 # --- Gradio Interface Definition ---
-# (No changes needed here, as the `fn` now handles streaming)
+
 input_text = gr.Textbox(lines=2, label="Ask a question about customer complaints:")
 output_text = gr.Markdown(label="Answer & Sources")
 
+# Define a clear function for the button
+def clear_inputs():
+    return "", "" # Clears both input_text and output_text
+
+# Create the Gradio Interface
 iface = gr.Interface(
     fn=chat_interface,
     inputs=input_text,
@@ -82,6 +82,18 @@ iface = gr.Interface(
     ]
 )
 
+# Add a Clear button below the interface
+# This creates a separate button that calls the clear_inputs function
+# and updates the input and output components.
+clear_button = gr.Button("Clear Chat")
+clear_button.click(
+    fn=clear_inputs,
+    inputs=[], # No inputs needed for clear
+    outputs=[input_text, output_text] # Outputs to clear
+)
+
+
+# Launch the Gradio app
 if __name__ == "__main__":
     print("Launching Gradio interface...")
     print("Please ensure your RAG pipeline (rag_pipeline.py) is correctly configured and its dependencies are met.")
